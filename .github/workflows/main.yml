@@ -15,6 +15,5 @@ jobs:
         with:
           base-image: ubuntu:22.04
           image: fxti/google-repo-tool:latest
-
-      - name: Check result
-        run: echo "Needs updating: ${{ steps.check.outputs.needs-updating }}"
+        env:
+          DEBUG: true
