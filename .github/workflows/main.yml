@@ -9,11 +9,53 @@ jobs:
   docker-sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
       - name: Check if update available
         id: check
         uses: lucacome/docker-image-update-checker@v1
         with:
           base-image: ubuntu:22.04
           image: fxti/google-repo-tool:latest
-        env:
-          DEBUG: true
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: sync
+          push: true
+          tags: fxti/google-repo-tool:latest
+        if: steps.check.outputs.needs-updating == 'true'
+
+  docker-mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Check if update available
+        id: check
+        uses: lucacome/docker-image-update-checker@v1
+        with:
+          base-image: alpine:latest
+          image: fxti/git-daemon:latest
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: mirror
+          push: true
+          tags: fxti/git-daemon:latest
+        if: steps.check.outputs.needs-updating == 'true'
