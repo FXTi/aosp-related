@@ -2,8 +2,7 @@
 FROM ubuntu:22.04
 
 # Modify the APT sources list and install necessary packages
-RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y curl git python3 python-is-python3 gnupg && \
     rm -rf /var/lib/apt/lists/*
 
