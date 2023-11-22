@@ -33,6 +33,11 @@ jobs:
           push: true
           tags: fxti/google-repo-tool:latest
 
+      - name: Feishu Notification
+        if: steps.check.outputs.needs-updating == 'true'
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"docker-sync image has been updated"}}' ${{ secrets.FEISHU_BOT_WEBHOOK }}
+
   docker-mirror:
     runs-on: ubuntu-latest
     steps:
@@ -60,6 +65,11 @@ jobs:
           context: mirror
           push: true
           tags: fxti/git-daemon:latest
+
+      - name: Feishu Notification
+        if: steps.check.outputs.needs-updating == 'true'
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"docker-mirror image has been updated"}}' ${{ secrets.FEISHU_BOT_WEBHOOK }}
 
   frps-latest:
     runs-on: ubuntu-latest
@@ -102,3 +112,8 @@ jobs:
           context: frps
           push: true
           tags: fxti/frps-latest:latest
+
+      - name: Feishu Notification
+        if: steps.check-and-commit.outputs.changes_detected == 'true'
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"frps-latest image has been updated"}}' ${{ secrets.FEISHU_BOT_WEBHOOK }}
