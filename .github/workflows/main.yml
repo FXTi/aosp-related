@@ -3,7 +3,6 @@ name: Check docker image
 on:
   schedule:
     - cron: '0 0 * * *'
-  workflow_dispatch:
 
 jobs:
   docker-sync:
@@ -75,6 +74,7 @@ jobs:
           cd ./frps
           chmod +x generate-dockerfile.sh
           ./generate-dockerfile.sh
+          cat ./Dockerfile
 
       - name: Build check
         uses: docker/build-push-action@v5
