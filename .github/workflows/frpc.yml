@@ -1,0 +1,54 @@
+name: Check docker image
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  frpc-latest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Dockerfile
+        run: |
+          cd ./frpc
+          chmod +x generate-dockerfile.sh
+          ./generate-dockerfile.sh
+          cat ./Dockerfile
+
+      - name: Build check
+        uses: docker/build-push-action@v5
+        with:
+          context: frpc
+          tags: fxti/frpc-latest:latest
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        id: check-and-commit
+        with:
+          repository: frpc
+          commit_message: Apply version bump to frpc image
+
+      - name: Login to DockerHub
+        if: steps.check-and-commit.outputs.changes_detected == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.check-and-commit.outputs.changes_detected == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: frpc
+          push: true
+          tags: fxti/frpc-latest:latest
+
+      - name: Feishu Notification
+        if: steps.check-and-commit.outputs.changes_detected == 'true'
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"post","content":{"post":{"zh_cn":{"title":"镜像更新通知","content":[[{"tag":"text","text":"frpc-latest镜像已更新: "},{"tag":"a","text":"请查看","href":"https://hub.docker.com/r/fxti/frpc-latest/tags"}]]}}}}' ${{ secrets.FEISHU_BOT_WEBHOOK }}

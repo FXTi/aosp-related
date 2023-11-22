@@ -5,5 +5,5 @@ tag_name=$(curl -s https://api.github.com/repos/fatedier/frp/releases/latest | j
 
 # Create Dockerfile
 cat << EOF > Dockerfile
-FROM fatedier/frps:$tag_name
+FROM fatedier/frpc:$tag_name
 EOF
