@@ -1,4 +1,4 @@
-name: Check docker image
+name: Update docker image if its base image changed
 
 on:
   schedule:

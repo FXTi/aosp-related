@@ -1,4 +1,4 @@
-name: Check docker image
+name: Check frpc image update
 
 on:
   schedule:
