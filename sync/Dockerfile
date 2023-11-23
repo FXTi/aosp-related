@@ -1,5 +1,4 @@
-# Use Ubuntu 22.04 as the base image
-FROM ubuntu:22.04
+FROM ubuntu:latest
 
 # Modify the APT sources list and install necessary packages
 RUN apt-get update && \

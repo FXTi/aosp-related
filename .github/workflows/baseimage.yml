@@ -15,7 +15,7 @@ jobs:
         id: check
         uses: lucacome/docker-image-update-checker@v1
         with:
-          base-image: ubuntu:22.04
+          base-image: ubuntu:latest
           image: fxti/google-repo-tool:latest
 
       - name: Login to DockerHub
