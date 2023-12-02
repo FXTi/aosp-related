@@ -15,7 +15,7 @@ def dns_query_specific_nameserver(query, nameserver='1.1.1.1', qtype='A'):
 
 local_ip = socket.gethostbyname(os.getenv('LOCAL_DOMAIN'))
 if local_ip == dns_query_specific_nameserver(os.getenv('REMOTE_SUBDOMAIN'), nameserver=os.getenv('DNS_SERVER')):
-    print(f'{REMOTE_SUBDOMAIN}: {local_ip} is right.')
+    print(f'{os.getenv("REMOTE_SUBDOMAIN")}: {local_ip} is right.')
     sys.exit(0)
 
 cf = CloudFlare.CloudFlare(token=os.getenv('CF_DNS_API_TOKEN'))
