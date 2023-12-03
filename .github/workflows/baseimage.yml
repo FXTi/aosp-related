@@ -81,7 +81,7 @@ jobs:
         id: check
         uses: lucacome/docker-image-update-checker@v1
         with:
-          base-image: python:3-slim:latest
+          base-image: python:3-slim
           image: fxti/ddns:latest
 
       - name: Login to DockerHub
