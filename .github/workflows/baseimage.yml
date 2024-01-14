@@ -104,3 +104,36 @@ jobs:
         run: |
           curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"post","content":{"post":{"zh_cn":{"title":"镜像更新通知","content":[[{"tag":"text","text":"ddns镜像已更新: "},{"tag":"a","text":"请查看","href":"https://hub.docker.com/r/fxti/ddns/tags"}]]}}}}' ${{ secrets.FEISHU_BOT_WEBHOOK }}
 
+  webdav:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if update available
+        id: check
+        uses: lucacome/docker-image-update-checker@v1
+        with:
+          base-image: ubuntu:latest
+          image: fxti/webdav:latest
+
+      - name: Login to DockerHub
+        if: steps.check.outputs.needs-updating == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.check.outputs.needs-updating == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: webdav
+          push: true
+          tags: fxti/webdav:latest
+
+      - name: Feishu Notification
+        if: steps.check.outputs.needs-updating == 'true'
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"post","content":{"post":{"zh_cn":{"title":"镜像更新通知","content":[[{"tag":"text","text":"webdav镜像已更新: "},{"tag":"a","text":"请查看","href":"https://hub.docker.com/r/fxti/webdav/tags"}]]}}}}' ${{ secrets.FEISHU_BOT_WEBHOOK }}
+
