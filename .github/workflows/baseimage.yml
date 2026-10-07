@@ -15,6 +15,10 @@ on:
           - git-daemon
           - ddns
         default: auto
+      keepalive_days:
+        description: 'Keepalive: commit when the last commit is older than this many days'
+        type: number
+        default: 45
 
 jobs:
   docker-sync:
@@ -178,3 +182,58 @@ jobs:
             echo "::error::Feishu notification failed with code $code"
             exit 1
           fi
+
+  keepalive:
+    # In a public repository GitHub disables scheduled workflows after 60 days
+    # without repository activity, and a disabled workflow cannot even be
+    # dispatched manually until it is re-enabled. Commit a marker before that
+    # deadline so the schedules survive quiet periods; while frp releases keep
+    # the repository active this job does nothing at all.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      # shared with the bump job of frp-images.yml, both of them push to master
+      group: repo-commit
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Commit a keepalive marker when the repository is about to go stale
+        env:
+          # empty for scheduled runs; resolved in the shell because 0 is a valid
+          # value here and `inputs.x || 45` would turn it into 45
+          KEEPALIVE_DAYS_INPUT: ${{ inputs.keepalive_days }}
+        run: |
+          set -euo pipefail
+          KEEPALIVE_DAYS="${KEEPALIVE_DAYS_INPUT:-45}"
+          age_days=$(( ($(date +%s) - $(git log -1 --format=%ct)) / 86400 ))
+          echo "last commit was $age_days days ago (threshold: $KEEPALIVE_DAYS days)"
+          if [ "$age_days" -lt "$KEEPALIVE_DAYS" ]; then
+            echo "repository is still active, nothing to commit"
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > .keepalive
+          git add .keepalive
+          if git diff --cached --quiet; then
+            echo "keepalive marker unchanged, nothing to commit"
+            exit 0
+          fi
+          git commit -m "Keep scheduled workflows enabled"
+
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "keepalive commit pushed"
+              exit 0
+            fi
+            echo "::warning::push rejected (attempt $attempt), rebasing onto origin/${GITHUB_REF_NAME}"
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase "origin/${GITHUB_REF_NAME}"
+          done
+
+          echo "::error::failed to push the keepalive commit after 3 attempts"
+          exit 1

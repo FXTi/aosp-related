@@ -23,6 +23,10 @@ concurrency:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    concurrency:
+      # shared with the keepalive job of baseimage.yml, both of them push to master
+      group: repo-commit
+      cancel-in-progress: false
     outputs:
       changed: ${{ steps.commit.outputs.changed }}
       tag: ${{ steps.tag.outputs.tag }}
