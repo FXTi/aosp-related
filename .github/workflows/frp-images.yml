@@ -1,0 +1,142 @@
+name: Update frpc/frps images
+
+# frpc and frps are built from the same fatedier/frp release and both write to
+# master, so they live in one workflow: one release lookup, one commit, one push.
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild and push even if the Dockerfiles are unchanged'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Never let two runs of this workflow race on git push.
+concurrency:
+  group: frp-image-update
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve latest frp release
+        id: tag
+        run: |
+          set -euo pipefail
+          tag=$(curl -fsSL https://api.github.com/repos/fatedier/frp/releases/latest | jq -r '.tag_name')
+          if [ -z "$tag" ] || [ "$tag" = "null" ]; then
+            echo "::error::could not resolve the latest fatedier/frp release tag"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "latest fatedier/frp release: $tag"
+
+      - name: Generate Dockerfiles
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for image in frpc frps; do
+            echo "--- $image/Dockerfile"
+            (cd "./$image" && ./generate-dockerfile.sh "$TAG" && cat Dockerfile)
+          done
+
+      - name: Commit and push version bump
+        id: commit
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if git diff --quiet -- frpc/Dockerfile frps/Dockerfile; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Dockerfiles already at $TAG, nothing to commit."
+            exit 0
+          fi
+
+          git commit -am "Apply version bump to frpc/frps images"
+
+          # master may have moved on while this run was in flight: rebase and retry
+          # instead of failing the whole pipeline on a non-fast-forward push.
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::warning::push rejected (attempt $attempt), rebasing onto origin/${GITHUB_REF_NAME}"
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase "origin/${GITHUB_REF_NAME}"
+          done
+
+          echo "::error::failed to push the version bump after 3 attempts"
+          exit 1
+
+  publish:
+    needs: bump
+    if: needs.bump.outputs.changed == 'true' || inputs.force == true
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [frpc, frps]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Dockerfile
+        env:
+          TAG: ${{ needs.bump.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd "./${{ matrix.image }}"
+          ./generate-dockerfile.sh "$TAG"
+          cat Dockerfile
+
+      - name: Build check
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.image }}
+          tags: fxti/${{ matrix.image }}-latest:latest
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.image }}
+          push: true
+          tags: fxti/${{ matrix.image }}-latest:latest
+          labels: |
+            org.opencontainers.image.version=${{ needs.bump.outputs.tag }}
+
+      - name: Feishu Notification
+        run: |
+          set -euo pipefail
+          response=$(curl -sS -X POST -H "Content-Type: application/json" \
+            -d '{"msg_type":"post","content":{"post":{"zh_cn":{"title":"镜像更新通知","content":[[{"tag":"text","text":"${{ matrix.image }}-latest镜像已更新: "},{"tag":"a","text":"请查看","href":"https://hub.docker.com/r/fxti/${{ matrix.image }}-latest/tags"}]]}}}}' \
+            "${{ secrets.FEISHU_BOT_WEBHOOK }}")
+          echo "$response"
+          # Feishu answers HTTP 200 even when it rejects the message, the real
+          # status is in the response body, so check it explicitly.
+          code=$(jq -r '.code // .StatusCode // 0' <<< "$response")
+          if [ "$code" != "0" ]; then
+            echo "::error::Feishu notification failed with code $code"
+            exit 1
+          fi
