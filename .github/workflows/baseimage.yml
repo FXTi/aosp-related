@@ -3,6 +3,7 @@ name: Update docker image if its base image changed
 on:
   schedule:
     - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   docker-sync:
