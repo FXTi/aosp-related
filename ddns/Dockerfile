@@ -2,8 +2,15 @@ FROM python:3-slim
 
 WORKDIR /app
 
-# Install CloudFlare library
-RUN pip install --no-cache-dir cloudflare dnspython
+# Install CloudFlare library.
+# `cloudflare` on PyPI changed meaning at 3.0.0: the legacy python-cloudflare
+# package (module CloudFlare, the one update_dns.py imports) only exists below
+# 3.0.0, from 3.0.0 on the same name serves the new official SDK whose module
+# is `cloudflare` (lowercase). Unpinned, the image builds fine and then dies at
+# runtime with ModuleNotFoundError: No module named 'CloudFlare'.
+# The import check makes that a build failure instead of a broken image.
+RUN pip install --no-cache-dir 'cloudflare<3' dnspython \
+ && python -c "import CloudFlare, dns.resolver"
 
 # Copy the script into the Docker image
 COPY update_dns.py .
