@@ -2,15 +2,14 @@ FROM python:3-slim
 
 WORKDIR /app
 
-# Install CloudFlare library.
-# `cloudflare` on PyPI changed meaning at 3.0.0: the legacy python-cloudflare
-# package (module CloudFlare, the one update_dns.py imports) only exists below
-# 3.0.0, from 3.0.0 on the same name serves the new official SDK whose module
-# is `cloudflare` (lowercase). Unpinned, the image builds fine and then dies at
-# runtime with ModuleNotFoundError: No module named 'CloudFlare'.
-# The import check makes that a build failure instead of a broken image.
-RUN pip install --no-cache-dir 'cloudflare<3' dnspython \
- && python -c "import CloudFlare, dns.resolver"
+# Install the official Cloudflare SDK plus dnspython.
+# `cloudflare` on PyPI means two different things: the maintained official SDK
+# (module `cloudflare`, 3.0.0 and up) and the legacy python-cloudflare package
+# (module `CloudFlare`, only below 3.0.0). update_dns.py uses the official SDK,
+# so keep it inside the 5.x major and assert the import at build time: a wrong
+# or renamed module must fail the build, not the running container.
+RUN pip install --no-cache-dir 'cloudflare>=5,<6' dnspython \
+ && python -c "import cloudflare, dns.resolver"
 
 # Copy the script into the Docker image
 COPY update_dns.py .
