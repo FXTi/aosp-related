@@ -1,1 +1,1 @@
-FROM fatedier/frps:v0.71.1
+FROM fatedier/frps:v0.72.0

@@ -1,1 +1,1 @@
-FROM fatedier/frpc:v0.71.1
+FROM fatedier/frpc:v0.72.0
